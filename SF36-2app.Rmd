@@ -1,0 +1,1126 @@
+---
+title: "SF36"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: yeti
+    orientation: rows
+    favicon: mpgo-simples.png
+    vertical_layout: fill
+    css: style.css
+    source_code: embed
+runtime: shiny
+---
+
+
+```{r global, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+
+library(flexdashboard)
+library(tidyverse)
+library(stringr)
+library(knitr)
+library(kableExtra)
+library(plotly)
+library(plyr)
+#library(ape)
+#library(gmodels)
+library(RColorBrewer)
+library(reshape2)
+#library(tm)
+library(nnet)
+library(lubridate)
+library(magrittr)
+library(viridis)
+#library(sf)
+#library(rmapshaper)
+library(DT)
+library(shiny)
+library(shinydashboard)
+library(readxl)
+source("Parse_functions.R", encoding = "UTF-8")
+```
+
+
+```{r dados}
+
+Respfinal = read_excel("Planilhacorrigida2.xlsx") %>% as.data.frame()
+
+
+```
+
+Inputs {.sidebar data-width=250}
+=======================================================================
+
+```{r}
+opcoes = c("SEXO","IDADE","CARGO","CAP/INT","MEIO/FIM","NIVEL", "ANOS NO MP" )
+
+br()
+#### Primeiro botão--------------------------------------####
+
+
+selectizeInput("carac", "Característica 1:", choices = opcoes, 
+               selected = "SEXO")
+
+#### Segundo Botão--------------------------------------####
+
+selectizeInput("carac2", "Característica 2:", choices = opcoes,
+               selected = "CARGO")
+
+observeEvent(input$carac, {
+
+    return(list(
+      updateSelectizeInput(session, inputId = "carac2", choices = opcoes[opcoes != input$carac],selected = "CARGO")))
+
+})
+
+
+shinyWidgets::materialSwitch(
+   inputId = "ValorZero",
+   label = "Valor Zero ", 
+   status = "primary"
+)
+
+div(class = "textoZero", 
+renderText(
+  c("O botão Valor Zero servirá para filtrar nos domínios os casos graves que possuem valor zero. Caso contrário, os casos graves mostrarão outros casos que também precisam de atenção (outliers), mas que não necessariamente possuem valor zero.")
+))
+
+```
+
+
+
+Participantes 
+=====================================  
+
+Row {data-height=400}
+-----------------------------------------------
+
+### Informações Gerais {data-width=410}
+
+***
+
+O questionário de 36 itens Short Form 36 (SF-36) é uma medida de qualidade de vida, relacionada à saúde, amplamente utilizada.  
+
+http://qualipes.com.br/lib/download/questionariosf-36.pdf  
+
+- Período de aplicação do Questionário: 18/04/2017 a 06/05/2019.
+
+- Os dados iniciais possuiam respostas de **1386** Integrantes.
+
+- Ao remover os questionários que estavam sem resposta em alguma questão importante, os dados finais ficaram com **1336** Integrantes.
+
+- **ATENÇÃO!** Esses dados não podem ser usados para generalizar os resultados para todos Integrantes do MPGO. Isso ocorre porque a amostra fornecida não é probabilística.
+
+
+As características dos Integrantes levadas em consideração nesse estudo foram:
+
+- SEXO
+- IDADE
+- CARGO
+- CAPITAL/INTERIOR
+- ÁREA MEIO/ ÁREA FIM
+- NÍVEL
+- ANOS NO MP
+
+
+
+### 
+
+```{r}
+dadosnovos2 = reactive({
+   # Selecionando os índices das colunas de acordo com o escolhido
+  i =  case_when(
+  input$carac2 == "" ~ 4,
+  input$carac2 == "SEXO" ~ 3,
+  input$carac2 == "IDADE" ~ 56,
+  input$carac2 == "CARGO" ~ 4  ,
+  input$carac2 == "CAP/INT" ~ 6 ,
+  input$carac2 == "MEIO/FIM" ~ 7 ,
+  input$carac2 == "NIVEL" ~ 57 ,
+  input$carac2 == "ANOS NO MP" ~ 59
+  )
+   # Gerando a tabela de frequência e as cores para o gráfico
+
+    da = Respfinal[,i] %>% count() 
+
+
+  names(da)[2] = "y"
+  da %<>% arrange(y)  %>% mutate(prop = paste0(round((da$y/sum(da$y))*100,2), "%"), 
+               colori = rev(viridis(nrow(da), alpha = 0.9)) ) 
+  # Se a escolha for IDADE, substituir os valores de x
+  if(input$carac2 == "IDADE"){
+    da$x = c("<=24 anos", "25-34 anos", "35-44 anos", "45-54 anos", "55-64 anos", "65-74 anos" )
+  } #Fim do if
+
+  return(da)
+  }
+)  
+
+
+nomes2 = reactive({
+  ifelse(input$carac2 == "", "CARGO", as.character(input$carac2))
+})
+
+renderPlotly({
+  plot_ly(dadosnovos2(), labels = ~x, values = ~y,
+          marker = list(colors = ~colori)) %>%
+  add_pie(hole = 0.6) %>%
+  layout(title = nomes2(),  showlegend = F,
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))%>% 
+  add_annotations(xref = 'paper', yref = 'paper',
+                  x = -0.05, y = -0.05,
+                  text = paste('Interativo com a Característica 2'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+})
+
+```
+
+
+Row
+-------------------------------------------------
+
+### {data-width=410}
+
+```{r}
+## Selecionando os dados de acordo com o que foi selecionado no botão
+dadosnovos = reactive({
+   # Selecionando os índices das colunas de acordo com o escolhido
+  i =  case_when(
+  input$carac == "" ~ 3,
+  input$carac == "SEXO" ~ 3,
+  input$carac == "IDADE" ~ 56,
+  input$carac == "CARGO" ~ 4  ,
+  input$carac == "CAP/INT" ~ 6 ,
+  input$carac == "MEIO/FIM" ~ 7 ,
+  input$carac == "NIVEL" ~ 57 ,
+  input$carac == "ANOS NO MP" ~ 59
+  )
+   # Gerando a tabela de frequência e as cores para o gráfico
+
+    da = Respfinal[,i] %>% count() 
+
+
+names(da)[2] = "y"
+da %<>%  
+  mutate(prop = paste0(round((da$y/sum(da$y))*100,2), "%") ) %>%  
+  arrange(y) %>% 
+  mutate(colori = rev(viridis(nrow(da), alpha = 0.9)))
+
+  return(da)
+  } # Fim do reactive
+)
+
+nomes = reactive({
+  ifelse(input$carac == "", "SEXO", as.character(input$carac))
+})
+
+
+## Renderizando o plot de acordo com o que foi selecionado no botão
+renderPlotly({
+
+     plot_ly(dadosnovos(), x = ~x, y = ~y, type = 'bar', name = nomes(), 
+            text = ~prop,
+            marker = list(color = ~colori)) %>%
+      layout( title = nomes(),
+              xaxis = list(title = ""),
+              yaxis = list(title = ""), showlegend = F) %>% return() %>% 
+    add_annotations(xref = 'paper', yref = 'paper',
+                  x = -0.07, y = -0.07,
+                  text = paste('Interativo com a Característica 1'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+ 
+}
+)
+
+
+
+
+```
+
+
+###  
+
+
+```{r}
+      i = reactive({case_when(
+  input$carac == "" ~ 3,
+  input$carac == "SEXO" ~ 3,
+  input$carac == "IDADE" ~ 56,
+  input$carac == "CARGO" ~ 4  ,
+  input$carac == "CAP/INT" ~ 6 ,
+  input$carac == "MEIO/FIM" ~ 7 ,
+  input$carac == "NIVEL" ~ 57 ,
+  input$carac == "ANOS NO MP" ~ 59 ) })
+
+  j = reactive({case_when(
+  input$carac2 == "" ~ 4,
+  input$carac2 == "SEXO" ~ 3,
+  input$carac2 == "IDADE" ~ 56,
+  input$carac2 == "CARGO" ~ 4  ,
+  input$carac2 == "CAP/INT" ~ 6 ,
+  input$carac2 == "MEIO/FIM" ~ 7 ,
+  input$carac2 == "NIVEL" ~ 57 ,
+  input$carac2 == "ANOS NO MP" ~ 59 )}) 
+
+  titulo = reactive({
+    a = ifelse(input$carac == "", "SEXO", input$carac)
+  b = ifelse(input$carac2  == "", "CARGO", input$carac2)
+  paste0(a, " x ", b) %>% return()}
+  )   
+  
+  dadostab = reactive({
+    DominioBarras_tab( Respfinal,i(),j())
+    })
+ 
+ renderPlotly({
+   
+
+  DominioBarras_plot(dadostab(), titulo()) %>% 
+  add_annotations(xref = 'paper', yref = 'paper',
+                  x = 0, y = -0.07,
+                  text = paste('Interativo com a Característica 1 e 2'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+ 
+  })
+```
+
+
+Questões 
+===================================== 
+
+row {data-height=100  data-width=300}
+-----------------------------------------------
+
+### Selecione uma questão 
+```{r}
+
+radioButtons(inputId = "questao", NULL, choices = 1:11,
+                   selected = 1, inline = T)
+
+```
+
+### Pergunta
+```{r}
+pergunta = data.frame(Per = c("Em geral, você diria que sua saúde é:", 
+             "Comparada com um ano atrás, como você avalia sua saúde em geral agora", 
+             "Os seguintes itens são sobre atividades que você poderia fazer durante um dia comum. Sua saúde atualmente limita você nestas atividades? Se limita, quanto?  ",
+             "Durante as últimas 4 semanas, você teve algum dos seguintes problemas com seu trabalho ou com alguma atividade regular diária como consequência de sua saúde física?  ", 
+             "Durante as últimas 4 semanas, você teve algum dos seguintes problemas com seu trabalho ou outra atividade regular diária como consequência de algum problema emocional (como se sentir deprimido ou ansioso)? ", 
+             "Durante as últimas 4 semanas, de que maneira seus problemas emocionais interferiram nas suas atividades sociais normais com a família, amigos, vizinhos ou em grupo?", "Quanta dor no corpo você teve durante as últimas 4 semanas?", 
+             "Durante as últimas 4 semanas, quanto a dor interferiu com seu trabalho normal (incluindo o trabalho fora e dentro de casa)?", 
+             "Estas questões são sobre como você se sente e como tudo tem acontecido com você durante as últimas 4 semanas. Para cada questão, por favor dê uma resposta que mais se aproxime da maneira como você se sente. ", 
+             "Durante as últimas 4 semanas, quanto de seu tempo a sua saúde física ou seus problemas emocionais interferiram com suas atividades sociais (como visitar amigos, parentes, etc.)?", 
+             "O quanto verdadeiro ou falso é cada uma das afirmações para você? "), stringsAsFactors = F)
+
+
+ind = reactive({
+  ifelse(input$questao == "",
+         return(1L),
+         return( input$questao))
+  }) # Fim reactive
+
+renderText({
+  pergunta[ind(),1] 
+})
+
+
+```
+
+Column
+-------------------------------------------------
+
+
+### 
+
+```{r}
+## Gerando as tabelas de frequência de cada pergunta
+
+## Para Questões 1,2,6:8,10
+
+TabelaQuestoesUnicas = lapply(c(1,2,6:8,10), function(te0){
+  TabfreqPerguntasUnica(Respfinal, te0)
+  })
+
+## Para Questões 3,4,5,9,11
+
+TabelaQuestoesMultiplas = lapply(c(3,4,5,9,11), function(te0){
+  
+  i = case_when(
+  te0 == 3 ~ 1,
+  te0 == 4 ~ 2,
+  te0 == 5 ~ 3,
+  te0 == 9 ~ 4,
+  te0 == 11 ~ 5 )
+
+
+indices = list(c(11:20), c(21:24), c(25:27), c(31:39), c(41:44))
+lege =  list( c("Sim, limita muito", "Sim, limita um pouco", 
+                "Não, não limita de modo algum"), 
+              c("Sim", "Não"), 
+              c("Sim", "Não"), 
+              c("Todo Tempo",	"A maior parte do tempo",	
+                "Uma boa parte do tempo",	"Alguma parte do tempo",	
+                "Uma pequena parte do tempo",	"Nunca"), 
+              c("Definitivamente verdadeiro",	"A maioria das vezes verdadeiro",	
+                "Não sei",	"A maioria das vezes falso", "Definitivamente falso" ))
+
+enunc = list( c("a) Atividades Vigorosas, tais como correr, levantar objetos pesados, participar em esportes árduos.", 
+                "b) Atividades moderadas, tais como mover uma mesa, passar aspirador de pó, jogar bola, varrer a casa.", 
+                "c) Levantar ou carregar mantimentos", 
+                "d) Subir vários lances de escada", 
+                "e) Subir um lance de escada", 
+                "f) Curvar-se, ajoelhar-se ou dobrar-se", 
+                "g) Andar mais de 1 quilômetro", 
+                "h) Andar vários quarteirões", 
+                "i) Andar um quarteirão", 
+                "j) Tomar banho ou vestir-se" ), 
+              c("a) Você diminuiu a quantidade de tempo que dedicava ao seu trabalho ou a outras atividades?", 
+                "b) Realizou menos tarefas do que você gostaria?", 
+                "c) Esteve limitado no seu tipo de trabalho ou em outras atividades?", 
+                "d) Teve dificuldade de fazer seu trabalho ou outras atividades (p. ex.: necessitou de um esforço extra)." ), 
+              c("a) Você diminuiu a quantidade de tempo que dedicava ao seu trabalho ou a outras atividades?", 
+                "b) Realizou menos tarefas do que você gostaria?", 
+                "c) Não realizou ou fez qualquer das atividades com tanto cuidado como geralmente faz." ),  
+              c("a) você tem se sentindo cheio de vitalidade?", 
+                "b) você tem se sentido uma pessoa muito nervosa?", 
+                "c) você tem se sentido tão deprimido que nada pode animá-lo?", 
+                "d) você tem se sentido calmo e tranquilo?", 
+                "e) você tem se sentido com muita energia?", 
+                "f) você tem se sentido desanimado ou triste?", 
+                "g) você tem se sentido desgastado?", 
+                "h) você tem se sentido uma pessoa feliz?", 
+                "i) você tem se sentido cansado? " ), 
+              c("a) Eu costumo ficar doente mais facilmente que as outras pessoas", 
+                "b) Eu sou tão saudável quanto qualquer pessoa que eu conheço", 
+                "c) Eu acho que a minha saúde vai piorar", 
+                "d) Minha saúde é excelente" ) ) # Fim enunc
+
+dadosQuestoesMultiplas(Respfinal[,indices[[i]] ],
+                       lege[[i]], 
+                       enunc[[i]]) %>% return()})
+## índice reativo
+inQ = reactive({
+  if (input$questao %in% c(1,2,6:8,10)){
+    a = data.frame(q = c(1,2,6:8,10), b = 1:6)
+    
+  } else {
+    a = data.frame(q = c(3,4,5,9,11), b = 1:5)
+  }
+  a[a[,1] == input$questao,2] %>% return()
+})
+```
+
+```{r}
+
+
+tituloq = reactive({
+  paste0("Questão ", input$questao)
+})
+
+# renderText({
+#   titulo() 
+# })
+
+ renderPlotly({
+   
+   if (input$questao %in% c(1,2,6:8,10)){
+     Plot_freqPerguntasUnica(TabelaQuestoesUnicas[[inQ()]],tituloq())
+   } else {
+     PlotBarras_questoesMultiplas(TabelaQuestoesMultiplas[[inQ()]], tituloq())
+   } 
+     
+   
+ })
+```
+
+
+Descrição {data-orientation=columns data-navmenu="Domínios"}
+===================================== 
+
+Row {data-width=300}
+-----------------------------------------------
+
+### Selecione um Domínio 
+```{r}
+edominio = c("Capacidade Funcional", "Aspectos físicos", "Dor", "Estado Geral de Saúde", "Vitalidade", "Aspector Sociais", "Aspectos Emocionais", "Saúde Mental")
+
+radioButtons(inputId = "dominio", NULL, choices = edominio,
+                   selected = "Capacidade Funcional", inline = T)
+
+
+```
+
+### Significado do Domínio
+```{r}
+
+SignificadoDominio = data.frame(Sig = c(
+  "Pretende medir desde a limitação para executar atividades físicas menores, como tomar banho ou vestir-se, até às atividades mais exigentes, passando por atividades intermédias como levantar ou carregar as compras da mercearia, subir lances de escadas ou andar uma determinada distância",
+  "Mede a limitação em saúde devido a problemas físicos, ao tipo e à quantidade do trabalho realizado. Inclui a limitação no tipo usual de tarefas executadas, a necessidade de redução da quantidade de trabalho e a dificuldade de realizar as tarefas",
+  "Representa não só a intensidade e o desconforto causados pela dor mas também a extensão da forma como interfere nas atividades usuais",
+  "Pretende medir o conceito de percepção geral da saúde, incluindo não só a saúde actual mas também a resistência à doença e a aparência saudável, tornando-se assim, menos redundante aos olhos dos responsáveis, relativamente às restantes perguntas",
+  "Inclui os níveis de energia e de fadiga. Esta escala permite captar melhor as diferenças de bem-estar",
+  "Pretende captar a quantidade e a qualidade das atividades sociais, assim como o impacto dos problemas físicos e emocionais nas atividades sociais do respondente",
+  "Mede a limitação em saúde devido a problemas emocionais, ao tipo e à quantidade do trabalho executado. Inclui a limitação no tipo usual de tarefas executadas, a necessidade de redução da quantidade de trabalho e a dificuldade de realizar as tarefas",
+  "Inclui questões referentes a quatro das mais importantes dimensões da saúde mental, nomeadamente a ansiedade, a depressão, a perda de controlo em termos comportamentais ou emocionais e o bem-estar psicológico"
+), stringsAsFactors = F)
+
+
+ind2 = reactive({
+  ifelse(input$dominio == "",
+         return(1),
+         return(which(edominio == input$dominio)))
+ } )
+
+
+renderText({
+
+  SignificadoDominio[ind2(),1]
+})
+
+nomedominio = reactive({
+  edominio[edominio ==input$dominio]
+})
+```
+
+### Significado Efeito Chão e Efeito Teto
+
+```{r}
+renderText({
+  "O Efeito chão e o efeito teto é a porcentagem de sujeitos que tiveram o escore mais baixo - (0) zero, ou mais alto - (100) cem - em cada um dos oito domínios, respectivamente. "
+})
+```
+
+
+
+Row {.tabset }
+--------------------------------------------------
+
+### Boxplot 
+
+```{r}
+
+renderPlotly({
+  plot_ly( y = Respfinal[,ind2() + 44], type = "violin",  box = list(visible = T), 
+           color = "#440154E6") %>% 
+    layout(title = nomedominio(),  showlegend = F,
+           xaxis = list(title = ""),
+           yaxis = list(title = "")) %>% 
+  add_annotations(xref = 'paper', yref = 'paper',
+                  x = -0.05, y = -0.05,
+                  text = paste('Interativo com a Seleção do Domínio'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+})
+
+```
+
+### Histograma
+
+```{r}
+renderPlotly({
+    plot_ly( x = Respfinal[,ind2() + 44], type = "histogram", marker = list(color = "#440154E6")) %>% 
+    layout(title = nomedominio()) %>% 
+  add_annotations(xref = 'paper', yref = 'paper',
+                  x = -0.05, y = -0.05,
+                  text = paste('Interativo com a Seleção do Domínio'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+})
+
+```
+
+### Medidas Resumo
+
+```{r}
+resumof = Resumo(Respfinal[,45:52])
+resumof = data.frame(resumof, 
+                     MenorEscore = c("Muito limitado em realizar todas as atividades físicas, incluindo banhar-se e vestir-se", "Problemas com o trabalho ou outras atividades diárias como consequência da saúde física", "Dor muito severa e extremamente limitante", " Avalia sua saúde geral como muito ruim
+e acredita que ela piorará", "Sente-se cansado ou esgotado todo o tempo", "Interferência extrema e frequente de problemas físicos e emocionais nas atividades sociais", "Problemas com o trabalho ou outras
+atividades diárias como consequência de problemas emocionais", "Sentir-se nervoso ou deprimido todo o
+tempo", ""),
+                    MaiorEscore = c("Realiza todos os tipos de atividades físicas incluindo as mais vigorosas sem limitações devidas a saúde", "Nenhum problema com trabalho ou outras atividades diárias", "Nenhuma dor e nenhuma limitação devido à dor", "Avalia sua saúde pessoal como excelente", "Sente-se cheio de energia e vigor todo o tempo", "Atividades sociais não sofrem interferência por problemas físicos ou emocionais", "Nenhum problema com trabalho ou atividades diárias.", "Sentir-se feliz, calmo e tranquilo todo o tempo", "")
+      )
+
+resumof %>% datatable()
+```
+
+
+Row 
+-----------------------------------------------
+
+### Efeito Chão/Teto
+```{r}
+dadosdominio = reactive({
+    Dchao = function(x){
+    a = x[ x == 0] %>%
+      length()
+    a/length(x)
+  }
+  Dteto = function(x){
+    a = x[ x == 100] %>%
+      length()
+    a/length(x)}
+  dc = Dchao(Respfinal[,c(ind2() + 44)])
+  dt = Dteto(Respfinal[,c(ind2() + 44)])
+    
+    chaoteto = data.frame(Dchao = dc, Dteto = dt, Dmeio= 1-(dc+dt)) %>% 
+      t() %>% 
+      as.data.frame() 
+    chaoteto$efeito = row.names(chaoteto)
+    names(chaoteto)[1] = "Grupo" 
+    chaoteto %>% return()
+})
+
+
+```
+
+
+```{r}
+
+
+renderPlotly({
+    plot_ly(dadosdominio(), values= ~Grupo, labels = ~efeito, 
+          textposition = 'inside',
+          textinfo = 'label+percent',
+          insidetextfont = list(color = '#FFFFFF'),
+          marker = list(colors = rev(viridis(nrow(dadosdominio()), alpha = 0.9)))) %>% 
+    add_pie(hole = 0.6) %>% 
+    layout(title = nomedominio(),  showlegend = F,
+           xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+           yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))%>% 
+  add_annotations(xref = 'paper', yref = 'paper',
+                  x = -0.05, y = -0.05,
+                  text = paste('Interativo com a Seleção do Domínio'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+}) 
+
+```
+
+
+### 
+
+```{r}
+
+  dadostabDomi = reactive({
+    DominioBarras_tab( Respfinal,i(),c(ind2() + 44))
+    })
+ 
+ renderPlotly({
+   
+
+  DominioBarras_plot(dadostabDomi(), nomedominio()) %>% 
+  add_annotations(xref = 'paper', yref = 'paper',
+                  x = -0.09, y = -0.09,
+                  text = paste('Interativo com a Característica 1 e a Seleção do Domínio'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+ 
+  })
+```
+
+
+Casos Graves {data-orientation=columns data-navmenu="Domínios"}
+===================================== 
+
+ Column
+--------------------------------------------------
+
+###
+
+```{r}
+renderPlotly({
+  plot_ly(totalDominio(), values= ~Frequência, labels = ~Dominios, 
+          textposition = 'inside',
+          marker = list(colors = rev(viridis(nrow(totalDominio()), alpha = 0.9)))) %>% 
+    add_pie(hole = 0.6) %>% 
+    layout(title = "Casos Graves nos Domínios",  showlegend = F,
+           xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+           yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))%>% 
+    add_annotations(xref = 'paper', yref = 'paper',
+                  x = -0.05, y = -0.1,
+                  text = paste('Interativo com Valor Zero'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+})
+
+```
+
+
+### Casos graves
+
+```{r, include=FALSE}
+## identificando os outliers
+outliers = lapply(45:52, function(a){
+  qual = identOutlier(Respfinal[,a])
+  dado = data.frame(Codigo = Respfinal$CODIGO[qual], 
+                    Dominio = rep(names(Respfinal)[a], length(qual)),
+                    Valor = Respfinal[qual,a],
+                    stringsAsFactors = F)
+  dado
+})
+tabelaoutliers = do.call(rbind, outliers)
+tabelaoutliers %<>% arrange(Codigo)
+
+### Fazendo a tabela ser reativa selecionando Zero deixando só os valores dos outliers
+tabelaZero = reactive({
+  if (input$ValorZero == FALSE){
+    tabelaoutliers %>% return()
+  } else {
+    tabelaoutliers %>% filter(Valor == 0) %>% return()
+  }
+})
+
+totalDominio = reactive({
+  a = count(tabelaZero()$Dominio) 
+  names(a) = c("Dominios", "Frequência") 
+  a %>% arrange(Frequência)})
+
+```
+
+```{r}
+renderDT({
+  totalDominio() %>%     
+        datatable(
+    escape = F,
+    colnames = toupper(names(tabelaoutliers2())),
+    extensions = c('Buttons',"Scroller"),
+    fillContainer = T,
+    filter = "top",
+    class = 'cell-border stripe nowrap',
+    options = list(
+      paging=F,
+      dom = 'Btip',
+      language = list(info = 'Total de registros: _TOTAL_'),
+      buttons = c('excel', 'pdf', 'print', 'csv')))
+})
+
+```
+
+
+
+
+###
+
+```{r}
+
+tabelaoutliers2 = reactive({
+  a = tabelaZero()  %>% 
+    select(Codigo) %>% 
+    count()
+  names(a)[2] = c("Quantidade")
+  a})
+
+
+renderPlotly({
+  plot_ly(x = tabelaoutliers2()$Quantidade, type = "histogram", marker = list(color = "#440154E6")) %>% 
+  layout(title = "Quantidade de Domínios <br>com Casos graves ")%>% 
+    add_annotations(xref = 'paper', yref = 'paper',
+                  x = -0.05, y = -0.1,
+                  text = paste('Interativo com Valor Zero'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+})
+
+```
+
+
+
+Column
+---------------------------------------------------
+
+
+### Selecione um Domínio {data-height=200}
+```{r}
+edominio = c("Capacidade Funcional", "Aspectos físicos",  "Dor","Estado Geral de Saúde", "Vitalidade", "Aspector Sociais", "Aspectos Emocionais", "Saúde Mental")
+
+radioButtons(inputId = "dominio2", NULL, choices = edominio,
+                   selected = "Capacidade Funcional", inline = T)
+
+
+```
+
+
+
+### 
+
+```{r}
+a = reactive({
+  case_when(
+    input$dominio2 == "Capacidade Funcional" ~ "ECapacidade.Funcional",
+    input$dominio2 == "Aspectos físicos" ~ "EAspectos.físicos",
+    input$dominio2 == "Estado Geral de Saúde" ~ "EEstado.Geral.de.Saúde",
+    input$dominio2 == "Vitalidade" ~ "EVitalidade",
+    input$dominio2 == "Aspector Sociais" ~ "EAspectos.Sociais",
+    input$dominio2 == "Aspectos Emocionais" ~ "EAspectos.Emocionais",
+    input$dominio2 == "Saúde Mental" ~ "ESaúde.Mental",
+    input$dominio2 == "Dor" ~ "EDor"
+  )})
+
+ind3 = reactive({
+  ifelse(input$dominio2 == "", 1, which(edominio == input$dominio2))
+ } )
+
+nomedominio2 = reactive({
+  edominio[edominio ==input$dominio2]
+})
+
+filtroDominio = reactive({
+  
+  b = tabelaZero() %>% filter(Dominio == a())
+  indout = which(Respfinal$CODIGO %in% b$Codigo)
+  Respfinal[indout,] %>% return()
+  
+})
+
+tabfreqOut = reactive({
+  DominioBarras_tab(filtroDominio(), i(), c(ind3() + 44))
+})
+
+tamanho = reactive({
+  tabfreqOut() %>% nrow()
+})
+
+    renderPlotly({
+
+    plot_ly(tabfreqOut(), x = ~n, y = ~Grupo, 
+          orientation = "h", type = "bar",
+          text = paste0(round(tabfreqOut()$prop,2),"%<br>",  tabfreqOut()$Dominio),
+          marker = list(color = ~cores,
+                        line = list(color = 'rgb(248, 248, 249)', width = 1))) %>% 
+    layout(title = nomedominio2(),
+           xaxis = list(title = "",
+                        showgrid = FALSE,
+                        showline = FALSE,
+                        zeroline = FALSE),
+           yaxis = list(title = "",
+                        showgrid = FALSE,
+                        showline = FALSE,
+                        zeroline = FALSE),
+           barmode = 'stack') %>% 
+  add_annotations(xref = 'paper', yref = 'paper',
+                  x = -0.05, y = -0.1,
+                  text = paste('Interativo com a Seleção do Domínio e Característica 1'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+
+}) 
+#   }
+# 
+# )
+  
+
+
+```
+
+
+### Casos Graves no Total
+
+```{r}
+valores = reactive({
+  a = tabelaZero()$Codigo %>% unique() %>% length()
+  te = data.frame(Valores = c(a, nrow(Respfinal) - a), leg = c("Casos Graves", "Casos Não Graves"))
+  te
+})
+
+renderPlotly({
+    plot_ly(valores(), values= ~Valores, labels = ~leg, 
+            textposition = 'inside',
+          marker = list(colors = rev(viridis(nrow(valores()), alpha = 0.9)))) %>% 
+    add_pie(hole = 0.6) %>% 
+    layout(title = "",  showlegend = F,
+           xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+           yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE)) %>% 
+    add_annotations(xref = 'paper', yref = 'paper',
+                  x = -0.05, y = -0.1,
+                  text = paste('Interativo com Valor Zero'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+})
+```
+
+
+
+ Column {.tabset }
+--------------------------------------------------
+
+### Identificação Geral 
+
+```{r}
+renderDT({
+  tabelaoutliers2() %>% 
+    datatable(
+    escape = F,
+    colnames = toupper(names(tabelaoutliers2())),
+    extensions = c('Buttons',"Scroller"),
+    fillContainer = T,
+    filter = "top",
+    class = 'cell-border stripe nowrap',
+    options = list(
+      paging=F,
+      dom = 'Btip',
+      language = list(info = 'Total de registros: _TOTAL_'),
+      buttons = c('excel', 'pdf', 'print', 'csv')))
+})
+
+```
+
+
+### Identificação Detalhada 
+
+```{r}
+renderDT({
+  tabelaZero() %>% 
+    datatable(
+    escape = F,
+    colnames = toupper(names(tabelaZero())),
+    extensions = c('Buttons',"Scroller"),
+    fillContainer = T,
+    filter = "top",
+    class = 'cell-border stripe nowrap',
+    options = list(
+      paging=F,
+      dom = 'Btip',
+      language = list(info = 'Total de registros: _TOTAL_'),
+      buttons = c('excel', 'pdf', 'print', 'csv')))
+})
+
+```
+
+
+Descrição {data-orientation=columns data-navmenu="Componentes Físicos e Mentais"}
+===================================== 
+
+
+Row
+------------------------------------------
+  
+### Boxplot 
+  
+```{r}
+Respfinal %>% 
+  plot_ly( y = ~DSaúde.Física, type = "violin", name = "Componente Físico", 
+           color = "#21908CE6", box = list(visible = T)) %>% 
+  add_trace( y = ~DSaúde.Mental, name = "Componente Mental" , color = "#440154E6") %>%
+  layout(title = "",
+         yaxis = list(title = ""),
+         showlegend = FALSE) 
+
+```
+
+### Histograma 
+
+```{r, echo = FALSE}
+hisdom = list(
+  h1 = Respfinal %>% 
+    plot_ly( x = ~DSaúde.Física, type = "histogram", name = "Componente Físico", 
+             marker = list(color = "#21908CE6")), 
+  h2 = Respfinal %>% 
+    plot_ly( x = ~DSaúde.Mental, type = "histogram", name = "Componente Mental",
+             marker = list(color = "#440154E6"))
+)
+
+subplot(hisdom) %>% 
+  layout(title = "", showlegend = F) 
+```
+
+
+### 
+
+```{r}
+Respfinal[,53:54] %>% 
+  Resumo()%>% 
+  kable(caption = "Medidas resumo dos Componentes") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+```
+
+
+Row
+--------------------------
+  
+### Efeito Chão/ Teto Componente Físico
+```{r}
+
+CFchao = chao(Respfinal$DSaúde.Física, 20.2)
+CFteto = teto(Respfinal$DSaúde.Física,57.9)
+
+CFchaoteto = data.frame(CFchao, CFmeio= nrow(Respfinal)-(CFchao+CFteto), CFteto) %>%
+  t() %>%
+  as.data.frame()
+names(CFchaoteto ) = "limite"
+CFchaoteto %<>%  mutate(CFefeito = row.names(CFchaoteto),
+                       cores = rev(viridis(nrow(CFchaoteto), alpha = 0.9)))
+
+
+plot_ly(CFchaoteto, values= ~limite, labels = ~CFefeito,
+        marker = list(colors = ~cores)) %>%
+          add_pie(hole = 0.6) %>%
+          layout(title = "",  showlegend = F,
+                 xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                 yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE)) %>% 
+  add_annotations(xref = 'paper', yref = 'paper',
+                  x = -0.05, y = -0.05,
+                  text = paste('Valor Chão: 20.2 / Valor Teto: 57.9'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+
+```
+
+### Efeito Chão/ Teto Componente Mental
+
+```{r}
+CMchao = chao(Respfinal$DSaúde.Mental, 20.2)
+CMteto = teto(Respfinal$DSaúde.Mental,57.9)
+
+CMchaoteto = data.frame(CMchao,  CMmeio= nrow(Respfinal)-(CMchao+CMteto),CMteto) %>%
+  t() %>%
+  as.data.frame()
+names(CMchaoteto ) = "limite"
+CMchaoteto %<>%   mutate(CMefeito = row.names(CMchaoteto),
+                       cores = rev(viridis(nrow(CMchaoteto), alpha = 0.9)))
+
+
+plot_ly(CMchaoteto, values= ~limite, labels = ~CMefeito,
+        marker = list(colors = ~cores)) %>%
+          add_pie(hole = 0.6) %>%
+          layout(title = "",  showlegend = F,
+                 xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                 yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE)) %>% 
+  add_annotations(xref = 'paper', yref = 'paper',
+                  x = -0.05, y = -0.05,
+                  text = paste('Valor Chão: 20.2 / Valor Teto: 57.9'),
+                  font = list(family = 'Arial', size = 10, color = 'rgb(150,150,150)'),
+                  showarrow = FALSE)
+
+```
+
+Casos Graves {data-navmenu="Componentes Físicos e Mentais"}
+===================================== 
+
+Row
+------------------------------------------------
+
+###
+
+```{r, include= FALSE}
+
+## identificando os outliers
+outliersFM = lapply(53:54, function(a){
+  qual = identOutlier(Respfinal[,a])
+  dado = data.frame(Codigo = Respfinal$CODIGO[qual], 
+                    Componente = rep(names(Respfinal)[a], length(qual)),
+                    Valor = Respfinal[qual,a],
+                    stringsAsFactors = F)
+  dado
+})
+tabelaoutliersFM = do.call(rbind, outliersFM)
+tabelaoutliersFM %<>% arrange(Codigo)
+
+
+  totalComponente = tabelaoutliersFM$Componente %>% count()
+  names(totalComponente) = c("Componente", "Frequência") 
+  totalComponente %<>% arrange(Frequência)
+
+```
+
+```{r}
+  plot_ly(totalComponente, values= ~Frequência, labels = ~Componente, 
+          textposition = 'inside',
+          marker = list(colors = rev(viridis(nrow(totalComponente), alpha = 0.9)))) %>% 
+    add_pie(hole = 0.6) %>% 
+    layout(title = "Casos Graves nos Componentes",  showlegend = F,
+           xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+           yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+```
+
+
+
+
+### Casos graves
+
+```{r}
+totalComponente %>% datatable()
+```
+
+###
+
+```{r}
+tabelaoutliersFM2 =  tabelaoutliersFM  %>% 
+    select(Codigo) %>% 
+    count()
+  names(tabelaoutliersFM2)[2] = c("Quantidade")
+
+
+
+  plot_ly(x = tabelaoutliersFM2$Quantidade, type = "histogram", marker = list(color = "#440154E6")) %>% 
+  layout(title = "Quantidade de Componentes <br>com Casos graves ")
+
+```
+
+### Casos Graves no Total
+
+```{r}
+
+  b = tabelaoutliersFM$Codigo %>% unique() %>% length()
+  valoresFM = data.frame(Valores = c(b, nrow(Respfinal) - b), leg = c("Casos Graves", "Casos Não Graves"))
+
+    plot_ly(valoresFM, values= ~Valores, labels = ~leg, 
+            textposition = 'inside',
+          marker = list(colors = rev(viridis(nrow(valoresFM), alpha = 0.9)))) %>% 
+    add_pie(hole = 0.6) %>% 
+    layout(title = "",  showlegend = F,
+           xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+           yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+```
+
+Row
+----------------------------------------------
+
+### Identificação Geral 
+
+```{r}
+
+  tabelaoutliersFM2 %>% 
+    datatable(
+    escape = F,
+    colnames = toupper(names(tabelaoutliersFM2)),
+    extensions = c('Buttons',"Scroller"),
+    fillContainer = T,
+    filter = "top",
+    class = 'cell-border stripe nowrap',
+    options = list(
+      paging=F,
+      dom = 'Btip',
+      language = list(info = 'Total de registros: _TOTAL_'),
+      buttons = c('excel', 'pdf', 'print', 'csv')))
+
+
+```
+
+
+### Identificação Detalhada 
+
+```{r}
+
+  tabelaoutliersFM %>% 
+    datatable(
+    escape = F,
+    colnames = toupper(names(tabelaoutliersFM)),
+    extensions = c('Buttons',"Scroller"),
+    fillContainer = T,
+    filter = "top",
+    class = 'cell-border stripe nowrap',
+    options = list(
+      paging=F,
+      dom = 'Btip',
+      language = list(info = 'Total de registros: _TOTAL_'),
+      buttons = c('excel', 'pdf', 'print', 'csv')))
+
+
+```
+
