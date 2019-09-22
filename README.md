@@ -2,7 +2,7 @@
 
 SF-36 is a set of generic, coherent, and easily administered quality-of-life measures. These measures rely upon patient self-reporting and are now widely utilized by managed care organizations . 
 The version of the questionnaire used for the study was the Brazilian version.
-[http://qualipes.com.br/lib/download/questionariosf-36.pdf](SF36)  
+[SF36](http://qualipes.com.br/lib/download/questionariosf-36.pdf)  
 
 - Application Period: 18/04/2017 a 06/05/2019.
 
@@ -24,3 +24,4 @@ The features taken into consideration in this study were:
 - LEVEL (NÍVEL)
 - YEARS WORKING IN MP (ANOS NO MP)
 
+![DASHBOARD.PNG]
