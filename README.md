@@ -24,4 +24,5 @@ The features taken into consideration in this study were:
 - LEVEL (NÍVEL)
 - YEARS WORKING IN MP (ANOS NO MP)
 
-![DASHBOARD.PNG]
+![First page](DASHBOARD.PNG)
+![Second page](Page (1))
