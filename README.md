@@ -25,4 +25,7 @@ The features taken into consideration in this study were:
 - YEARS WORKING IN MP (ANOS NO MP)
 
 ![First page](DASHBOARD.PNG)
-![Second page](Page (1))
+![Second page](Page1.PNG)
+![Third page](Page2.PNG)
+![Fourth page](Page3.PNG)
+![FIfty page](Page4.PNG)
